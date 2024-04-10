@@ -5,3 +5,5 @@ Trying to create a config for my M5StickcPlus without arduino, rust only with no
 ## M5StickcPlus
 
 I am using the official manual of the M5StickcPlus, you can find it [here](https://cdn.competec.ch/documents2/8/5/9/185624958/185624958.pdf).
+
+![](assets/m5stickcplus.webp)
