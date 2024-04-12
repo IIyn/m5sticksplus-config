@@ -2,44 +2,54 @@
 #![no_main]
 
 use esp_backtrace as _;
-use esp_hal::{clock::ClockControl, gpio, peripherals::Peripherals, prelude::*, Delay, IO};
+use esp_hal::{clock::ClockControl, peripherals::Peripherals, prelude::*, Delay, IO};
 use esp_println::println;
+
+mod modules;
+use modules::{buttons, led, microphone};
 
 #[entry]
 fn main() -> ! {
+    // setting up the peripherals
     let peripherals: Peripherals = Peripherals::take();
     let system: esp_hal::system::SystemParts<'static> = peripherals.SYSTEM.split();
-
     let clocks: esp_hal::clock::Clocks<'static> = ClockControl::max(system.clock_control).freeze();
     let mut delay: Delay = Delay::new(&clocks);
-
     let mut io: IO = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-    let mut gpio10: esp_hal::gpio::GpioPin<esp_hal::gpio::Output<esp_hal::gpio::PushPull>, 10> =
-        io.pins.gpio10.into_push_pull_output();
-    let gpio37: gpio::GpioPin<gpio::Input<gpio::Floating>, 37> =
-        io.pins.gpio37.into_floating_input();
-    let gpio0: &mut gpio::GpioPin<gpio::Unknown, 0> = io.pins.gpio0.enable_input(true); // microphone pin (SPM1423)
+
+    // abstractions :
+    let mut led: led::Led = led::Led::new(io.pins.gpio10.into_push_pull_output());
+    let mut microphone: microphone::Microphone =
+        microphone::Microphone::new(io.pins.gpio0.enable_input(true));
+    let buttons: buttons::Buttons = buttons::Buttons::new(
+        io.pins.gpio37.into_floating_input(),
+        io.pins.gpio39.into_floating_input(),
+    );
+
     println!("Setting up the configuration...");
     loop {
         // println!("Loop...");
-        if gpio37.is_low().unwrap() {
+        if buttons.is_pressed_a() {
             println!("Button pressed");
-            gpio10.toggle().unwrap();
-            if gpio0.is_listening() {
+            led.toggle();
+            if microphone.is_listening() {
                 println!("Microphone is listening.");
             } else {
                 println!("Microphone is not listening");
-                gpio0.listen(gpio::Event::AnyEdge)
+                microphone.listen();
             }
-        } else if !gpio10.is_set_high().unwrap() {
+        } else if !led.is_set_high() {
             println!("Button not pressed and led is on");
-            gpio10.toggle().unwrap();
+            led.toggle();
         }
-        if gpio0.is_listening() && gpio37.is_high().unwrap() {
+        if microphone.is_listening() && buttons.is_released_a() {
             println!("Microphone is listening and button not pressed");
             // interrupt listening
-            gpio0.unlisten();
-            gpio0.enable_input(false);
+            microphone.unlisten();
+            microphone.enable_input(false);
+        }
+        if buttons.is_pressed_b() {
+            println!("Button B pressed");
         }
         delay.delay_ms(500u32);
     }
